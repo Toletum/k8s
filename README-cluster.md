@@ -3,6 +3,7 @@
 ## Create cluster
 
 ### Download ubuntu server image
+```
 wget https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img -O ubuntu24.img
 
 qemu-img convert -f qcow2 -O qcow2 ubuntu24.img manager.qcow2
@@ -13,18 +14,24 @@ qemu-img resize w01.qcow2 +20G
 
 qemu-img convert -f qcow2 -O qcow2 ubuntu24.img w02.qcow2
 qemu-img resize w02.qcow2 +20G
+```
 
 
 ### create ssh keys
+```
 ssh-keygen -f keys
+```
 
 ### create cloud-init.iso
+```
 cloud-localds cloud-init-manager.iso user-data-manager meta-data-manager
 cloud-localds cloud-init-w01.iso user-data-w01 meta-data-w01
 cloud-localds cloud-init-w02.iso user-data-w02 meta-data-w02
+```
 
 
 ### create Manager
+```
 virt-install \
   --name manager \
   --ram=4096 \
@@ -35,10 +42,10 @@ virt-install \
   --network bridge=virbr0,model=virtio \
   --import \
   --graphics none &
-
-
+```
 
 ### create workers
+```
 virt-install \
   --name w01 \
   --ram=4096 \
@@ -61,9 +68,11 @@ virt-install \
   --network bridge=virbr0,model=virtio \
   --import \
   --graphics none &
+```
 
 
 ### Check k8s snap
+```
 ssh-keygen -f '/home/toletum/.ssh/known_hosts' -R '192.168.122.200'
 ssh-keygen -f '/home/toletum/.ssh/known_hosts' -R '192.168.122.201'
 ssh-keygen -f '/home/toletum/.ssh/known_hosts' -R '192.168.122.202'
@@ -72,9 +81,11 @@ ssh-keygen -f '/home/toletum/.ssh/known_hosts' -R '192.168.122.202'
 ssh -o StrictHostKeyChecking=no -i keys root@192.168.122.200 snap list
 ssh -o StrictHostKeyChecking=no -i keys root@192.168.122.201 snap list
 ssh -o StrictHostKeyChecking=no -i keys root@192.168.122.202 snap list
+```
                     
 
 ## k8s
+```
 scp -i keys keys root@192.168.122.200:
 
 ssh -o StrictHostKeyChecking=no -i keys root@192.168.122.200
@@ -89,5 +100,5 @@ ssh -o StrictHostKeyChecking=no -i keys root@192.168.122.201  "k8s join-cluster 
 
 TOKEN=$(k8s get-join-token --worker)
 ssh -o StrictHostKeyChecking=no -i keys root@192.168.122.202  "k8s join-cluster $TOKEN"
-
+```
 
