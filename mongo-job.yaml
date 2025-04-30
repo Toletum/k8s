@@ -1,0 +1,25 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mongo-init
+spec:
+  template:
+    spec:
+      containers:
+      - name: init
+        image: mongo:8.0
+        command:
+          - mongosh
+          - "192.168.122.200:30000"
+          - "--eval"
+          - |
+            rs.initiate({
+              _id: "rs0",
+              members: [
+                { _id: 0, host: "192.168.122.200:30000" },
+                { _id: 1, host: "192.168.122.201:30001" },
+                { _id: 2, host: "192.168.122.202:30002" }
+              ]
+            })
+      restartPolicy: OnFailure
+
