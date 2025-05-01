@@ -23,6 +23,8 @@ ssh-keygen -f keys
 ```
 
 ### create cloud-init.iso
+Edit keys.pub
+
 ```
 cloud-localds cloud-init-manager.iso user-data-manager meta-data-manager
 cloud-localds cloud-init-w01.iso user-data-w01 meta-data-w01
@@ -78,9 +80,9 @@ ssh-keygen -f '/home/toletum/.ssh/known_hosts' -R '192.168.122.201'
 ssh-keygen -f '/home/toletum/.ssh/known_hosts' -R '192.168.122.202'
 
 
-ssh -o StrictHostKeyChecking=no -i keys root@192.168.122.200 snap list
-ssh -o StrictHostKeyChecking=no -i keys root@192.168.122.201 snap list
-ssh -o StrictHostKeyChecking=no -i keys root@192.168.122.202 snap list
+ssh -o StrictHostKeyChecking=no -i keys root@192.168.122.200 'snap list k8s || echo "WAITING"'
+ssh -o StrictHostKeyChecking=no -i keys root@192.168.122.201 'snap list k8s || echo "WAITING"'
+ssh -o StrictHostKeyChecking=no -i keys root@192.168.122.202 'snap list k8s || echo "WAITING"'
 ```
                     
 
@@ -91,6 +93,7 @@ scp -i keys keys root@192.168.122.200:
 ssh -o StrictHostKeyChecking=no -i keys root@192.168.122.200
 
 echo "alias kubectl='k8s kubectl'" >> /root/.bashrc
+. /root/.bashrc
 k8s bootstrap
 
 
@@ -100,5 +103,10 @@ ssh -o StrictHostKeyChecking=no -i keys root@192.168.122.201  "k8s join-cluster 
 
 TOKEN=$(k8s get-join-token --worker)
 ssh -o StrictHostKeyChecking=no -i keys root@192.168.122.202  "k8s join-cluster $TOKEN"
+```
+
+### Test
+```
+kubectl get nodes
 ```
 
