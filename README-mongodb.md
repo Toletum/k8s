@@ -9,6 +9,8 @@ kubectl apply -f mongo-net.yaml
 ## Mongodb
 ```
 kubectl apply -f mongo-statefulset.yaml
+
+kubectl get pods -w
 ```
 
 

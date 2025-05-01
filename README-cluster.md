@@ -110,3 +110,16 @@ ssh -o StrictHostKeyChecking=no -i keys root@192.168.122.202  "k8s join-cluster 
 kubectl get nodes
 ```
 
+### Dashboard
+```
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.7.0/aio/deploy/recommended.yaml
+kubectl apply -f admin-user.yaml
+
+kubectl -n kubernetes-dashboard create token admin-user
+
+
+kubectl -n kubernetes-dashboard patch svc kubernetes-dashboard -p '{"spec": {"type": "NodePort"}}'
+kubectl -n kubernetes-dashboard get svc
+```
+
+
