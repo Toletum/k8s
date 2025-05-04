@@ -1,0 +1,110 @@
+#!/bin/bash
+
+source config
+
+
+if [ ! -f ubuntu24.img ];
+then
+  wget https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img -O ubuntu24.img
+else
+  echo "ubuntu24.img before"
+fi
+
+rm -f keys keys.pub
+ssh-keygen -t ed25519 -f keys -N "" -q
+KEYSPUB=$(cat keys.pub)
+
+
+if [ ! -f TEMPLATE.qcow2 ];
+then
+qemu-img convert -f qcow2 -O qcow2 ubuntu24.img TEMPLATE.qcow2
+qemu-img resize TEMPLATE.qcow2 +20G
+else
+  echo "TEMPLATE.qcow2 before"
+fi
+
+for key in "${!NODES[@]}"; do
+#    echo "$key => ${NODES[$key]}"
+
+cp -v TEMPLATE.qcow2 ${key}.qcow2
+
+done
+
+
+
+for key in "${!NODES[@]}"; do
+
+META_DATA="
+instance-id: cluster
+local-hostname: ${key}
+"
+
+USER_DATA="
+#cloud-config
+users:
+  - name: root
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - ${KEYSPUB}
+
+expire: false
+
+ssh_pwauth: false
+disable_root: true
+
+write_files:
+  - path: /etc/netplan/50-cloud-init.yaml
+    content: |
+      network:
+        version: 2
+        ethernets:
+          enp1s0:
+            dhcp4: false
+            addresses:
+              - ${NODES[$key]}/24
+            routes:
+              - to: 0.0.0.0/0
+                via: 192.168.122.1
+            nameservers:
+              addresses:
+                - 1.1.1.1
+                - 8.8.8.8
+
+runcmd:
+  - netplan apply
+"
+
+
+echo "$META_DATA" > meta-data-${key}
+
+echo "$USER_DATA" > user-data-${key}
+
+cloud-localds cloud-init-${key}.iso user-data-${key} meta-data-${key}
+
+virt-install \
+  --name ${key} \
+  --ram=${MEMORY} \
+  --vcpus=2 \
+  --disk path=${key}.qcow2,format=qcow2 \
+  --disk path=cloud-init-${key}.iso,device=cdrom \
+  --os-variant ubuntu24.04 \
+  --network bridge=virbr0,model=virtio \
+  --import \
+  --graphics none &
+done
+
+echo "Nodes Uping...."
+for key in "${!NODES[@]}"; do
+  ssh-keygen -f '/home/toletum/.ssh/known_hosts' -R ${NODES[$key]} > /dev/null 2>&1
+  s=1
+  while [ $s -ne 0 ]
+  do
+    echo "  ${key}..."
+    ssh -o StrictHostKeyChecking=no -i keys root@${NODES[$key]} ls >/dev/null 2>&1
+    s=$(echo $?)
+  done
+  echo "  ${key} OK"
+done
+
+
+

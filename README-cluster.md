@@ -80,9 +80,9 @@ ssh-keygen -f '/home/toletum/.ssh/known_hosts' -R '192.168.122.201'
 ssh-keygen -f '/home/toletum/.ssh/known_hosts' -R '192.168.122.202'
 
 
-ssh -o StrictHostKeyChecking=no -i keys root@192.168.122.200 'snap list k8s || echo "WAITING"'
-ssh -o StrictHostKeyChecking=no -i keys root@192.168.122.201 'snap list k8s || echo "WAITING"'
-ssh -o StrictHostKeyChecking=no -i keys root@192.168.122.202 'snap list k8s || echo "WAITING"'
+ssh -o StrictHostKeyChecking=no -i keys root@192.168.122.200 'snap list k8s 2>/dev/null || echo "WAITING"'
+ssh -o StrictHostKeyChecking=no -i keys root@192.168.122.201 'snap list k8s 2>/dev/null || echo "WAITING"'
+ssh -o StrictHostKeyChecking=no -i keys root@192.168.122.202 'snap list k8s 2>/dev/null || echo "WAITING"'
 ```
                     
 
