@@ -3,9 +3,15 @@ declare -A NODES
 NODES[node01]="192.168.122.200"
 NODES[node02]="192.168.122.201"
 NODES[node03]="192.168.122.202"
-NODES[node04]="192.168.122.203"
-NODES[node05]="192.168.122.204"
 
 declare -A MEMORY
-MEMORY=3072
+MEMORY=4096
+
+declare -A MANAGER
+MANAGER="${NODES[node01]}"
+
+# COLORS
+GREEN=$(tput setaf 2)
+YELLOW=$(tput setaf 3)
+RESET=$(tput sgr0)
 

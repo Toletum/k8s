@@ -2,7 +2,6 @@
 
 source config
 
-
 if [ ! -f ubuntu24.img ];
 then
   wget https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img -O ubuntu24.img
@@ -93,17 +92,16 @@ virt-install \
   --graphics none &
 done
 
-echo "Nodes Uping...."
 for key in "${!NODES[@]}"; do
   ssh-keygen -f '/home/toletum/.ssh/known_hosts' -R ${NODES[$key]} > /dev/null 2>&1
   s=1
   while [ $s -ne 0 ]
   do
-    echo "  ${key}..."
+    echo -e "${YELLOW} ${key} waiting.${RESET}"
     ssh -o StrictHostKeyChecking=no -i keys root@${NODES[$key]} ls >/dev/null 2>&1
     s=$(echo $?)
   done
-  echo "  ${key} OK"
+  echo -e "${GREEN} Node ${key} OK.${RESET}"
 done
 
 

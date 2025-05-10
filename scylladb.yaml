@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: scylla-nodes
+  namespace: default
+spec:
+  serviceName: scylla-service
+  replicas: 3
+  selector:
+    matchLabels:
+      app: scylla
+  template:
+    metadata:
+      labels:
+        app: scylla
+    spec:
+      containers:
+      - name: scylla
+        image: scylladb/scylla:5.2.3 # Usa la versión deseada
+        ports:
+        - containerPort: 9042 # Cliente nativo
+        - containerPort: 9160 # Thrift (generalmente no se usa en versiones recientes)
+        - containerPort: 7000 # Comunicación entre nodos
+        - containerPort: 7001 # Comunicación Gossip SSL
+        - containerPort: 7199 # JMX
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/scylla
+        env:
+        - name: SCYLLA_CLUSTER_NAME
+          value: "my-manual-cluster"
+        - name: SCYLLA_SEEDS
+          value: "scylla-nodes-0.scylla-service.default.svc.cluster.local" # Inicializa con el primer nodo
+        - name: SCYLLA_LISTEN_ADDRESS
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: SCYLLA_BROADCAST_ADDRESS
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        resources:
+          requests:
+            cpu: "1"
+            memory: 2Gi
+          limits:
+            cpu: "2"
+            memory: 4Gi
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 10Gi
