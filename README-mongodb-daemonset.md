@@ -1,0 +1,98 @@
+# MongoDB DaemonSet
+
+source config
+
+openssl rand -base64 756 > keyfile
+
+
+for key in "${!NODES[@]}"; do
+ssh -o StrictHostKeyChecking=no -i keys root@${NODES[$key]} '
+rm -rf /data/db
+mkdir -p /data/db
+'
+
+scp -o StrictHostKeyChecking=no -i keys keyfile root@${NODES[$key]}:/data/db 
+
+ssh -o StrictHostKeyChecking=no -i keys root@${NODES[$key]} '
+chmod 400 /data/db/keyfile
+chown 999:999 -R /data
+'
+done
+
+## Mongodb
+```
+kubectl apply -f mongo-daemonset.yaml
+
+pending=1
+while [ $pending -gt 0 ]; do
+echo -e "${YELLOW} Waiting all nodes Ready... ${RESET}"
+s=$(kubectl get pods -l app=mongo --no-headers | awk '{print "-",$3,"-"}')
+sleep 1
+pending=$(echo "$s" | grep -v " Running " | wc -l)
+echo -e "${YELLOW} mongo pods no runnig: $pending... ${RESET}"
+done
+echo -e "${GREEN} mongo pods RUNNING ${RESET}"
+
+
+POD=$(kubectl get pods -l app=mongo -o jsonpath='{.items[0].metadata.name}')
+```
+
+
+## Active RS
+```
+kubectl exec -it ${POD} -- mongosh -eval '
+rs.initiate({
+  _id: "rs0",
+  members: [
+    { _id: 0, host: "192.168.122.200:27017" },
+    { _id: 1, host: "192.168.122.201:27017" },
+    { _id: 2, host: "192.168.122.202:27017" },
+  ]
+});
+'
+```
+
+
+## Status
+```
+kubectl exec -it ${POD} -- mongosh -eval 'rs.status()'
+```
+
+## Admin User
+```
+PRIMARY=""
+while [ "$PRIMARY" == "" ]; do
+echo -e "${YELLOW} Waiting PRIMARY... ${RESET}"
+PRIMARY=$(kubectl exec -it ${POD} -- sh -c "mongosh -eval 'rs.isMaster().primary' | cut -d":" -f1")
+sleep 1
+done
+echo -e "${GREEN} PRIMARY ${PRIMARY} ${RESET}"
+
+POD=$(kubectl get pods --field-selector status.podIP=${PRIMARY} -o jsonpath='{.items[0].metadata.name}')
+echo -e "${GREEN} POD ${POD} ${RESET}"
+
+
+kubectl exec -it $POD -- mongosh mongodb://127.0.0.1:27017/admin -eval '
+db.createUser({
+  user: "admin",
+  pwd: "admin",  // Cambia esto por una contraseña segura
+  roles: [{ role: "root", db: "admin" }]
+});
+'
+
+```
+
+
+## Test
+```
+kubectl exec -it  $POD -- mongosh 'mongodb://admin:admin@192.168.122.200:27017/?directConnection=false&appName=mongosh+2.5.0&readPreference=primary'
+```
+
+if [ ! -f ./mongosh-2.5.1-linux-x64/bin/mongosh ]; then
+wget https://downloads.mongodb.com/compass/mongosh-2.5.1-linux-x64.tgz
+tar xvf mongosh-2.5.1-linux-x64.tgz
+fi
+
+./mongosh-2.5.1-linux-x64/bin/mongosh "mongodb://admin:admin@192.168.122.200:27017,192.168.122.201:27017,192.168.122.202:27017/?directConnection=false&readPreference=primary"
+
+

@@ -26,6 +26,8 @@ spec:
       labels:
         app: mongo
     spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -46,14 +48,6 @@ spec:
             - name: data
               mountPath: /data/db
       containers:
-        - name: devops
-          image: alpine:latest
-          command: 
-            - sleep
-            - infinity
-          volumeMounts:
-            - name: data
-              mountPath: /data/db
         - name: mongo
           image: mongo:8.0
           args:
