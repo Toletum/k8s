@@ -6,9 +6,10 @@ if [ ! -f ubuntu24.img ];
 then
   wget https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img -O ubuntu24.img
 else
-  echo "ubuntu24.img before"
+  echo -e "${GREEN} ubuntu24.img before.${RESET}"
 fi
 
+echo -e "${GREEN} Generating ssh key.${RESET}"
 rm -f keys keys.pub
 ssh-keygen -t ed25519 -f keys -N "" -q
 KEYSPUB=$(cat keys.pub)
@@ -16,16 +17,18 @@ KEYSPUB=$(cat keys.pub)
 
 if [ ! -f TEMPLATE.qcow2 ];
 then
+  echo -e "${GREEN} Creating TEMPLATE.qcow2.${RESET}"
 qemu-img convert -f qcow2 -O qcow2 ubuntu24.img TEMPLATE.qcow2
 qemu-img resize TEMPLATE.qcow2 +20G
 else
-  echo "TEMPLATE.qcow2 before"
+  echo -e "${GREEN} TEMPLATE.qcow2 before.${RESET}"
 fi
 
 for key in "${!NODES[@]}"; do
 #    echo "$key => ${NODES[$key]}"
 
-cp -v TEMPLATE.qcow2 ${key}.qcow2
+echo -e "${GREEN} ${key}.qcow2 copying.${RESET}"
+cp TEMPLATE.qcow2 ${key}.qcow2
 
 done
 
@@ -89,7 +92,7 @@ virt-install \
   --os-variant ubuntu24.04 \
   --network bridge=virbr0,model=virtio \
   --import \
-  --graphics none &
+  --graphics none  > /dev/null 2>&1 &
 done
 
 for key in "${!NODES[@]}"; do

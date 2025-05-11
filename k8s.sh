@@ -3,10 +3,9 @@
 source config
 
 
-echo "K8S Installing...."
 for key in "${!NODES[@]}"; do
   {
-    echo -e "${GREEN} Node ${key} (${NODES[$key]})...${RESET}"
+    echo -e "${GREEN} K8S Installing... ${key} (${NODES[$key]})...${RESET}"
 
 ssh -t -o StrictHostKeyChecking=no -i keys root@${NODES[$key]} '
 apt update && sudo apt upgrade -y
@@ -16,6 +15,8 @@ systemctl start qemu-guest-agent
 systemctl enable iscsid
 systemctl start iscsid
 snap install k8s --classic
+echo "alias kubectl=\"k8s kubectl\"" >> /root/.bashrc
+echo "alias helm=\"k8s helm\"" >> /root/.bashrc
 reboot
 ' > /dev/null 2>&1
 
@@ -27,7 +28,6 @@ done
 wait
 
 
-echo "Nodes ready...."
 for key in "${!NODES[@]}"; do
   s=1
   while [ $s -ne 0 ]
@@ -44,9 +44,10 @@ done
 ssh -o StrictHostKeyChecking=no -i keys root@${MANAGER} 'k8s bootstrap'
 
 
+echo -e "${YELLOW} Joining nodos to k8s cluster ${RESET}"
 for key in "${!NODES[@]}"; do
   if [ "${MANAGER}" == "${NODES[$key]}" ]; then
-    echo "${key} is the manager"
+    echo -e "${YELLOW} ${key} is manager ${RESET}"
     continue
   fi
   TOKEN=$(ssh -o StrictHostKeyChecking=no -i keys root@${MANAGER} 'k8s get-join-token --worker')
@@ -59,7 +60,7 @@ for key in "${!NODES[@]}"; do
   s="XXX"
   while [ "$s" != "True" ];
   do
-    echo -e "${YELLOW} Waiting ${key}...${RESET}"
+    echo -e "${YELLOW} Waiting ${key} from READY...${RESET}"
     s=$(ssh -o StrictHostKeyChecking=no -i keys root@${MANAGER} "k8s kubectl get node ${key} -o jsonpath='{.status.conditions[?(@.type==\"Ready\")].status}'")
     sleep 1
   done
@@ -67,7 +68,17 @@ for key in "${!NODES[@]}"; do
 done
 
 
+pending=1
+while [ $pending -gt 0 ]; do
+echo -e "${YELLOW} Waiting all pods RUNNING... ${RESET}"
+s=$(ssh -o StrictHostKeyChecking=no -i keys root@${MANAGER}  "k8s kubectl get pods -A --no-headers" | awk '{print $4}')
+pending=$(echo "$s" | grep -v "Running" | wc -l)
+echo -e "${YELLOW} Pods no running $pending... ${RESET}"
+done
+echo -e "${GREEN} All pods RUNNING ${RESET}"
+
 # Dashboard
+if [ "$DASHBOARD" == "true" ]; then
 scp -o StrictHostKeyChecking=no -i keys admin-user.yaml root@${MANAGER}:
 
 ssh -o StrictHostKeyChecking=no -i keys root@${MANAGER} "
@@ -84,5 +95,6 @@ k8s kubectl -n kubernetes-dashboard get svc kubernetes-dashboard -o=jsonpath="{.
 
 
 echo "https://${MANAGER}:${PORT}"
+fi
 
 
