@@ -1,5 +1,5 @@
 # MongoDB DaemonSet
-
+```
 source config
 
 openssl rand -base64 756 > keyfile
@@ -18,6 +18,7 @@ chmod 400 /data/db/keyfile
 chown 999:999 -R /data
 '
 done
+```
 
 ## Mongodb
 ```
