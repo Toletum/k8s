@@ -89,11 +89,13 @@ db.createUser({
 kubectl exec -it  $POD -- mongosh 'mongodb://admin:admin@192.168.122.200:27017/?directConnection=false&appName=mongosh+2.5.0&readPreference=primary'
 ```
 
+## External Test
+```
 if [ ! -f ./mongosh-2.5.1-linux-x64/bin/mongosh ]; then
 wget https://downloads.mongodb.com/compass/mongosh-2.5.1-linux-x64.tgz
 tar xvf mongosh-2.5.1-linux-x64.tgz
 fi
 
 ./mongosh-2.5.1-linux-x64/bin/mongosh "mongodb://admin:admin@192.168.122.200:27017,192.168.122.201:27017,192.168.122.202:27017/?directConnection=false&readPreference=primary"
-
+```
 
