@@ -52,6 +52,9 @@ fi
 alias kubectl="./kubectl --kubeconfig=kubeconfig"
 
 
+./kubectl --kubeconfig=kubeconfig taint nodes node01 node-role.kubernetes.io/master=:NoSchedule
+
+
 echo -e "${GREEN} Joining nodos to k8s cluster ${RESET}"
 for key in "${!NODES[@]}"; do
   if [ "${MANAGER}" == "${NODES[$key]}" ]; then
@@ -83,6 +86,7 @@ pending=1
 while [ $pending -gt 0 ]; do
 echo -e "${YELLOW} Waiting all pods RUNNING... ${RESET}"
 s=$(kubectl get pods -A --no-headers | awk '{print $4}')
+sleep 1
 pending=$(echo "$s" | grep -v "Running" | wc -l)
 echo -e "${YELLOW} Pods no running $pending... ${RESET}"
 done
@@ -101,5 +105,9 @@ PORT=$(kubectl -n kubernetes-dashboard get svc kubernetes-dashboard -o=jsonpath=
 
 echo "https://${MANAGER}:${PORT}"
 fi
+
+
+
+
 
 
