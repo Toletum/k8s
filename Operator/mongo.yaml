@@ -1,0 +1,5 @@
+apiVersion: toletum.org/v1
+kind: MongoDaemon
+metadata:
+  name: mongodb3
+spec: {}

@@ -2,15 +2,18 @@
 ```
 source config
 
-openssl rand -base64 756 > keyfile
+for key in "${!NODES[@]}"; do
+ssh -o StrictHostKeyChecking=no -i keys root@${NODES[$key]} rm -rvf /data/db
+done
+
 
 
 for key in "${!NODES[@]}"; do
-ssh -o StrictHostKeyChecking=no -i keys root@${NODES[$key]} '
-rm -rf /data/db
-mkdir -p /data/db
-'
+ssh -o StrictHostKeyChecking=no -i keys root@${NODES[$key]} mkdir -p /data/db
+done
 
+
+openssl rand -base64 756 > keyfile
 scp -o StrictHostKeyChecking=no -i keys keyfile root@${NODES[$key]}:/data/db 
 
 ssh -o StrictHostKeyChecking=no -i keys root@${NODES[$key]} '
