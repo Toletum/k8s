@@ -25,11 +25,8 @@ else
 fi
 
 for key in "${!NODES[@]}"; do
-#    echo "$key => ${NODES[$key]}"
-
 echo -e "${GREEN} ${key}.qcow2 copying.${RESET}"
 cp TEMPLATE.qcow2 ${key}.qcow2
-
 done
 
 
@@ -86,7 +83,7 @@ cloud-localds cloud-init-${key}.iso user-data-${key} meta-data-${key}
 virt-install \
   --name ${key} \
   --ram=${MEMORY} \
-  --vcpus=2 \
+  --vcpus=${CPUS} \
   --disk path=${key}.qcow2,format=qcow2 \
   --disk path=cloud-init-${key}.iso,device=cdrom \
   --os-variant ubuntu24.04 \

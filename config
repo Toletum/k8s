@@ -8,6 +8,10 @@ NODES[node04]="192.168.122.203"
 declare -A MEMORY
 MEMORY=2048
 
+declare -A CPUS
+CPUS=4
+
+
 declare -A MANAGER
 MANAGER="${NODES[node01]}"
 

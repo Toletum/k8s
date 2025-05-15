@@ -44,15 +44,26 @@ ssh -o StrictHostKeyChecking=no -i keys root@${MANAGER} 'k8s bootstrap'
 
 ssh -o StrictHostKeyChecking=no -i keys root@${MANAGER}  "k8s kubectl config view --raw" > kubeconfig
 sed  -i s/127.0.0.1:6443/${MANAGER}:6443/g kubeconfig
+chmod 600 kubeconfig
+
 if [ ! -f ./kubectl ]; then
 curl -LO "https://dl.k8s.io/release/v1.32.3/bin/linux/amd64/kubectl"
 chmod +x ./kubectl
 fi
 
+if [ ! -f ./helm ]; then
+curl -LO https://get.helm.sh/helm-v3.14.3-linux-amd64.tar.gz
+tar --extract --file=helm-v3.14.3-linux-amd64.tar.gz linux-amd64/helm
+mv linux-amd64/helm .
+fi
+
+
 alias kubectl="./kubectl --kubeconfig=kubeconfig"
+alias helm="./helm --kubeconfig=kubeconfig"
 
+KUBECTL="./kubectl --kubeconfig=kubeconfig"
 
-./kubectl --kubeconfig=kubeconfig taint nodes node01 node-role.kubernetes.io/master=:NoSchedule
+$KUBECTL taint nodes node01 node-role.kubernetes.io/master=:NoSchedule
 
 
 echo -e "${GREEN} Joining nodos to k8s cluster ${RESET}"
@@ -74,7 +85,7 @@ wait
 pending=1
 while [ $pending -gt 0 ]; do
 echo -e "${YELLOW} Waiting all nodes Ready... ${RESET}"
-s=$(kubectl get nodes --no-headers | awk '{print "-",$2,"-"}')
+s=$($KUBECTL get nodes --no-headers | awk '{print "-",$2,"-"}')
 sleep 1
 pending=$(echo "$s" | grep -v " Ready " | wc -l)
 echo -e "${YELLOW} Nodes no ready: $pending... ${RESET}"
@@ -85,7 +96,7 @@ echo -e "${GREEN} All nodes Ready RUNNING ${RESET}"
 pending=1
 while [ $pending -gt 0 ]; do
 echo -e "${YELLOW} Waiting all pods RUNNING... ${RESET}"
-s=$(kubectl get pods -A --no-headers | awk '{print $4}')
+s=$($KUBECTL get pods -A --no-headers | awk '{print $4}')
 sleep 1
 pending=$(echo "$s" | grep -v "Running" | wc -l)
 echo -e "${YELLOW} Pods no running $pending... ${RESET}"
@@ -96,12 +107,12 @@ echo -e "${GREEN} All pods RUNNING ${RESET}"
 # Dashboard
 if [ "$DASHBOARD" == "true" ]; then
 
-kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.7.0/aio/deploy/recommended.yaml
-kubectl apply -f admin-user.yaml
-kubectl -n kubernetes-dashboard patch svc kubernetes-dashboard -p '{"spec": {"type": "NodePort"}}'
-kubectl -n kubernetes-dashboard create token admin-user
+$KUBECTL apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.7.0/aio/deploy/recommended.yaml
+$KUBECTL apply -f admin-user.yaml
+$KUBECTL -n kubernetes-dashboard patch svc kubernetes-dashboard -p '{"spec": {"type": "NodePort"}}'
+$KUBECTL -n kubernetes-dashboard create token admin-user
 
-PORT=$(kubectl -n kubernetes-dashboard get svc kubernetes-dashboard -o=jsonpath="{.spec.ports[0].nodePort}")
+PORT=$($KUBECTL -n kubernetes-dashboard get svc kubernetes-dashboard -o=jsonpath="{.spec.ports[0].nodePort}")
 
 echo "https://${MANAGER}:${PORT}"
 fi
