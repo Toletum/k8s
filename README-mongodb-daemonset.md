@@ -18,10 +18,7 @@ chmod 400 /data/db/keyfile
 chown 999:999 -R /data
 '
 done
-```
 
-## Mongodb
-```
 kubectl apply -f mongo-daemonset.yaml
 
 pending=1
@@ -36,27 +33,27 @@ echo -e "${GREEN} mongo pods RUNNING ${RESET}"
 
 
 POD=$(kubectl get pods -l app=mongo -o jsonpath='{.items[0].metadata.name}')
-```
 
 
-## Active RS
-```
-kubectl exec -it ${POD} -- mongosh -eval '
-rs.initiate({
-  _id: "rs0",
-  members: [
-    { _id: 0, host: "192.168.122.200:27017" },
-    { _id: 1, host: "192.168.122.201:27017" },
-    { _id: 2, host: "192.168.122.202:27017" },
-  ]
-});
-'
-```
+IPS=$(kubectl get pod -l app=mongo -o jsonpath="{range .items[*]}{.status.hostIP}{'\n'}{end}" | sort)
+
+# Construir miembros
+i=0
+MEMBERS=""
+for ip in $IPS; do
+  MEMBERS+="    { _id: $i, host: \"$ip:27017\" },\n"
+  ((i++))
+done
+MEMBERS=$(echo -e "$MEMBERS" | sed '$s/,\n$//')
+
+SCRIPT=$(echo -e "rs.initiate({\n  _id: \"rs0\",\n  members: [\n$MEMBERS\n  ]\n});")
+
+kubectl exec "$POD" -- mongosh --eval "$SCRIPT"
 
 
-## Status
-```
-kubectl exec -it ${POD} -- mongosh -eval 'rs.status()'
+sleep 5
+
+kubectl exec ${POD} -- mongosh -eval 'rs.status()'
 ```
 
 ## Admin User
@@ -64,7 +61,7 @@ kubectl exec -it ${POD} -- mongosh -eval 'rs.status()'
 PRIMARY=""
 while [ "$PRIMARY" == "" ]; do
 echo -e "${YELLOW} Waiting PRIMARY... ${RESET}"
-PRIMARY=$(kubectl exec -it ${POD} -- sh -c "mongosh -eval 'rs.isMaster().primary' | cut -d":" -f1")
+PRIMARY=$(kubectl exec ${POD} -- sh -c "mongosh -eval 'rs.isMaster().primary' | cut -d":" -f1")
 sleep 1
 done
 echo -e "${GREEN} PRIMARY ${PRIMARY} ${RESET}"
@@ -73,7 +70,7 @@ POD=$(kubectl get pods --field-selector status.podIP=${PRIMARY} -o jsonpath='{.i
 echo -e "${GREEN} POD ${POD} ${RESET}"
 
 
-kubectl exec -it $POD -- mongosh mongodb://127.0.0.1:27017/admin -eval '
+kubectl exec $POD -- mongosh mongodb://127.0.0.1:27017/admin -eval '
 db.createUser({
   user: "admin",
   pwd: "admin",  // Cambia esto por una contraseña segura
@@ -86,7 +83,7 @@ db.createUser({
 
 ## Test
 ```
-kubectl exec -it  $POD -- mongosh 'mongodb://admin:admin@192.168.122.200:27017/?directConnection=false&appName=mongosh+2.5.0&readPreference=primary'
+kubectl exec $POD -- mongosh 'mongodb://admin:admin@127.0.0.1:27017/?directConnection=false&appName=mongosh+2.5.0&readPreference=primary'
 ```
 
 ## External Test
@@ -96,6 +93,12 @@ wget https://downloads.mongodb.com/compass/mongosh-2.5.1-linux-x64.tgz
 tar xvf mongosh-2.5.1-linux-x64.tgz
 fi
 
-./mongosh-2.5.1-linux-x64/bin/mongosh "mongodb://admin:admin@192.168.122.200:27017,192.168.122.201:27017,192.168.122.202:27017/?directConnection=false&readPreference=primary"
+HOSTS=$(for ip in $IPS; do echo -n "$ip:27017,"; done | sed 's/,$//')
+
+# String de conexión MongoDB
+URI="mongodb://admin:admin@${HOSTS}/?directConnection=false&readPreference=primary"
+
+
+./mongosh-2.5.1-linux-x64/bin/mongosh "$URI"
 ```
 

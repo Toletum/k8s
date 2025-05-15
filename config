@@ -6,10 +6,10 @@ NODES[node03]="192.168.122.202"
 NODES[node04]="192.168.122.203"
 
 declare -A MEMORY
-MEMORY=2048
+MEMORY=4096
 
 declare -A CPUS
-CPUS=4
+CPUS=8
 
 
 declare -A MANAGER

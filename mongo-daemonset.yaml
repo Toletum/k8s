@@ -12,9 +12,15 @@ spec:
       labels:
         app: mongo
     spec:
-      hostNetwork: true
+      hostNetwork: true  # Conection to port 27017
       dnsPolicy: ClusterFirstWithHostNet
       affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: DoesNotExist
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
             - labelSelector:

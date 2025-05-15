@@ -49,7 +49,7 @@ users:
 expire: false
 
 ssh_pwauth: false
-disable_root: true
+disable_root: false
 
 write_files:
   - path: /etc/netplan/50-cloud-init.yaml
@@ -70,6 +70,8 @@ write_files:
                 - 8.8.8.8
 
 runcmd:
+  - apt update
+  - apt upgrade -y
   - netplan apply
 "
 

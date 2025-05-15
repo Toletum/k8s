@@ -4,25 +4,20 @@ source config
 
 
 for key in "${!NODES[@]}"; do
-  {
     echo -e "${GREEN} K8S Installing... ${key} (${NODES[$key]})...${RESET}"
-
+{
 ssh -t -o StrictHostKeyChecking=no -i keys root@${NODES[$key]} '
-apt update && sudo apt upgrade -y
-apt-get install -y nfs-common qemu-guest-agent open-iscsi vim
-systemctl enable qemu-guest-agent
-systemctl start qemu-guest-agent
+apt-get install -y nfs-common open-iscsi vim curl
 systemctl enable iscsid
 systemctl start iscsid
 snap install k8s --classic
 reboot
 ' > /dev/null 2>&1
+}
 
-    echo -e "${GREEN} Node ${key} Reboot.${RESET}"
-
-  } &
 done
 
+echo -e "${GREEN} Waiting k8s & reboot...${RESET}"
 wait
 
 for key in "${!NODES[@]}"; do
@@ -58,10 +53,11 @@ mv linux-amd64/helm .
 fi
 
 
-alias kubectl="./kubectl --kubeconfig=kubeconfig"
-alias helm="./helm --kubeconfig=kubeconfig"
 
-KUBECTL="./kubectl --kubeconfig=kubeconfig"
+alias kubectl="$PWD/kubectl --kubeconfig=$PWD/kubeconfig"
+alias helm="$PWD/helm --kubeconfig=$PWD/kubeconfig"
+
+KUBECTL="$PWD/kubectl --kubeconfig=$PWD/kubeconfig"
 
 $KUBECTL taint nodes node01 node-role.kubernetes.io/master=:NoSchedule
 
