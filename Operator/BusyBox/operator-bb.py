@@ -14,7 +14,7 @@ LABELS = {
     "name": "busyboxdaemon",
     "operator": "busyboxdaemons.toletum.org",
     "mongodb_node": "mongo-toletum-org-mongodb",
-    "status_annotation": "busyboxdaemons.toletum.org.status"
+    "daemonset_status": "busyboxdaemons.toletum.org.status"
 }
 
 logger = logging.getLogger(LABELS['operator'])
@@ -67,7 +67,8 @@ def create_ds(name, namespace, patch, **kwargs):
     ds_manifest['spec']['template']['metadata']['labels']['app'] = name
 
     api.create_namespaced_daemon_set(namespace=namespace, body=ds_manifest)
-    patch.metadata.annotations.update({LABELS["status_annotation"]: json.dumps({
+    patch.metadata.annotations.update({LABELS["daemonset_status"]: json.dumps({
+        "created": True,
         "replicaSet": False,
         "user": False
     })})
@@ -79,13 +80,14 @@ def delete_ds(name, namespace, patch, **kwargs):
     try:
         api.delete_namespaced_daemon_set(name=name, namespace=namespace)
         logger.info(f"DaemonSet {name} eliminado de {namespace}")
-        patch.metadata.annotations.update({LABELS["status_annotation"]: json.dumps({
+        patch.metadata.annotations.update({LABELS["daemonset_status"]: json.dumps({
+            "created": False,
             "replicaSet": False,
             "user": False
         })})
     except ApiException as e:
         if e.status == 404:
-            logger.info(f"DaemonSet {name} no encontrado, ya fue eliminado")
+            logger.info(f"DaemonSet {name} not found, deleted before")
         else:
             raise
 
@@ -106,9 +108,8 @@ def action_timer(name, namespace, **kwargs):
 
     annotations = kwargs.get('body', {}).get('metadata', {}).get('annotations', {})
     try:
-        cluster_status = json.loads(annotations.get(LABELS["status_annotation"]))
+        cluster_status = json.loads(annotations.get(LABELS["daemonset_status"]))
     except Exception as ex:
-        logger.error("Failed to parse annotation status: %s", ex)
         cluster_status = {}
 
-    logger.info("%s/%s %s", namespace, name, str(cluster_status))
+    logger.info("%s/%s daemonset_status: %s", namespace, name, str(cluster_status))
