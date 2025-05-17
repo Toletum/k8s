@@ -7,13 +7,15 @@ for key in "${!NODES[@]}"; do
     echo -e "${GREEN} K8S Installing... ${key} (${NODES[$key]})...${RESET}"
 {
 ssh -t -o StrictHostKeyChecking=no -i keys root@${NODES[$key]} '
-apt-get install -y nfs-common open-iscsi vim curl
+apt-get install -y nfs-common open-iscsi vim curl qemu-guest-agent
 systemctl enable iscsid
 systemctl start iscsid
 snap install k8s --classic
+sudo systemctl start qemu-guest-agent
+sudo systemctl enable qemu-guest-agent
 reboot
 ' > /dev/null 2>&1
-}
+} &
 
 done
 
@@ -53,10 +55,7 @@ mv linux-amd64/helm .
 fi
 
 
-
-alias kubectl="$PWD/kubectl --kubeconfig=$PWD/kubeconfig"
-alias helm="$PWD/helm --kubeconfig=$PWD/kubeconfig"
-
+export KUBECONFIG="$PWD/kubeconfig"
 KUBECTL="$PWD/kubectl --kubeconfig=$PWD/kubeconfig"
 
 $KUBECTL taint nodes node01 node-role.kubernetes.io/master=:NoSchedule
@@ -113,6 +112,11 @@ PORT=$($KUBECTL -n kubernetes-dashboard get svc kubernetes-dashboard -o=jsonpath
 echo "https://${MANAGER}:${PORT}"
 fi
 
+cat <<EOF
+alias kubectl="$PWD/kubectl --kubeconfig=$PWD/kubeconfig"
+alias helm="$PWD/helm --kubeconfig=$PWD/kubeconfig"
+export KUBECONFIG="$PWD/kubeconfig"
+EOF
 
 
 
