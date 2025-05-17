@@ -16,14 +16,6 @@ spec:
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
       affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                  - key: mongo
-                    operator: In
-                    values:
-                      - "true"
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
             - labelSelector:

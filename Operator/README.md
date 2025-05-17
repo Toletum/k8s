@@ -21,7 +21,7 @@ kopf run operator.py --namespace=default
 for key in "${!NODES[@]}"; do
 {
 echo "$key"
-ssh -o StrictHostKeyChecking=no -i ../keys root@${NODES[$key]} mkdir /data/db
+ssh -o StrictHostKeyChecking=no -i ../keys root@${NODES[$key]} mkdir -p /data/db
 } &
 done && wait
 
@@ -39,10 +39,15 @@ kubectl delete -f mongo.yaml
 for key in "${!NODES[@]}"; do
 {
 echo "$key"
-ssh -o StrictHostKeyChecking=no -i ../keys root@${NODES[$key]} rm -rf /data/db
+ssh -o StrictHostKeyChecking=no -i ../keys root@${NODES[$key]} rm -rf /data
 } &
 done && wait
 
+
+for key in "${!NODES[@]}"; do
+echo "$key"
+ssh -o StrictHostKeyChecking=no -i ../keys root@${NODES[$key]} ls -la /data
+done
 
 kubectl patch MongoDaemon mongo-cluster-1 -p '{"status": null}' --type=merge
 
