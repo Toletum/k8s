@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: placeholder-name
+  labels:
+    app: placeholder-name
+spec:
+  selector:
+    matchLabels:
+      app: placeholder-name
+  template:
+    metadata:
+      labels:
+        app: placeholder-name
+    spec:
+      containers:
+        - name: busybox
+          image: busybox
+          command: ["sleep", "infinity"]
