@@ -68,11 +68,14 @@ def isPrimary(pod_name, namespace):
                       _request_timeout=10).strip().lower()
         # Poner "true"/"false" como string
         label_value = "true" if resp == "true" else "false"
-        body = {"metadata": {"labels": {LABELS['primary_label']: label_value}}}
+        body = {"metadata": {"labels": {LABELS['primary_label']: label_value, LABELS['disabled_label']: None}}}
         api.patch_namespaced_pod(name=pod_name, namespace=namespace, body=body)
         return True if resp == "true" else False
     except Exception as ex:
-        body = {"metadata": {"labels": {LABELS['disabled_label']: "true"}}}
+        body = {"metadata": {"labels": {
+            LABELS['disabled_label']: "true",
+            LABELS['primary_label']: None
+        }}}
         api.patch_namespaced_pod(name=pod_name, namespace=namespace, body=body)
         return None
 
