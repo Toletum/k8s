@@ -8,8 +8,18 @@ import yaml
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
-logger = logging.getLogger("busyboxdaemons.toletum.org")
+LABELS = {
+    "domain": "toletum.org",
+    "version": "v1",
+    "name": "busyboxdaemon",
+    "operator": "busyboxdaemons.toletum.org",
+    "mongodb_node": "mongo-toletum-org-mongodb",
+    "status_annotation": "busyboxdaemons.toletum.org.status"
+}
+
+logger = logging.getLogger(LABELS['operator'])
 logging.basicConfig(level=logging.INFO)
+
 
 # Cargar configuración K8s
 try:
@@ -22,18 +32,21 @@ except config.ConfigException:
 def configure(settings: kopf.OperatorSettings, **_):
     v1 = client.CoreV1Api()
     logger.info("Checking node availability...")
-    nodes = v1.list_node(label_selector="mongo-toletum-org-mongodb=true")
+    label_selector = f"{LABELS['mongodb_node']}=true"
+    nodes = v1.list_node(label_selector=label_selector)
     num_nodes = len(nodes.items)
     if num_nodes < 3:
-        logger.error("At least 3 nodes with the label mongo-toletum-org-mongodb=true are required")
+        logger.error(f"At least 3 nodes with the label {label_selector} are required")
         logger.error(" -> kubectl label node <NODE> mongo-toletum-org-mongodb=true --overwrite")
         sys.exit(1)
     logger.info("Nodes: %s", [n.metadata.name for n in nodes.items])
 
-@kopf.on.create('toletum.org', 'v1', 'busyboxdaemon')
+
+@kopf.on.create(LABELS['domain'], LABELS['version'], LABELS['name'])
 def create_ds(name, namespace, patch, **kwargs):
     api = client.AppsV1Api()
     COapi = client.CustomObjectsApi()
+
     # Listar BusyboxDaemon en el namespace
     objs = COapi.list_namespaced_custom_object(
         group="toletum.org", version="v1",
@@ -54,19 +67,19 @@ def create_ds(name, namespace, patch, **kwargs):
     ds_manifest['spec']['template']['metadata']['labels']['app'] = name
 
     api.create_namespaced_daemon_set(namespace=namespace, body=ds_manifest)
-    patch.metadata.annotations.update({'busyboxdaemons.toletum.org.status': json.dumps({
+    patch.metadata.annotations.update({LABELS["status_annotation"]: json.dumps({
         "replicaSet": False,
         "user": False
     })})
 
 
-@kopf.on.delete('toletum.org', 'v1', 'busyboxdaemon')
+@kopf.on.delete(LABELS['domain'], LABELS['version'], LABELS['name'])
 def delete_ds(name, namespace, patch, **kwargs):
     api = client.AppsV1Api()
     try:
         api.delete_namespaced_daemon_set(name=name, namespace=namespace)
         logger.info(f"DaemonSet {name} eliminado de {namespace}")
-        patch.metadata.annotations.update({'busyboxdaemons.toletum.org.status': json.dumps({
+        patch.metadata.annotations.update({LABELS["status_annotation"]: json.dumps({
             "replicaSet": False,
             "user": False
         })})
@@ -76,10 +89,11 @@ def delete_ds(name, namespace, patch, **kwargs):
         else:
             raise
 
-@kopf.timer('toletum.org', 'v1', 'busyboxdaemon', interval=10)
+
+@kopf.timer(LABELS['domain'], LABELS['version'], LABELS['name'], interval=10)
 def action_timer(name, namespace, **kwargs):
     v1 = client.CoreV1Api()
-    label_selector = f"app={name}"  # Asumí que usás label 'app' con el nombre del DS
+    label_selector = f"app={name}"
 
     pods = v1.list_namespaced_pod(namespace=namespace, label_selector=label_selector)
     for pod in pods.items:
@@ -89,13 +103,12 @@ def action_timer(name, namespace, **kwargs):
             "ready": all([c.ready for c in (pod.status.container_statuses or [])])
         }
         logger.info("Pods status for %s: %s", name, estado)
+
     annotations = kwargs.get('body', {}).get('metadata', {}).get('annotations', {})
     try:
-        cluster_status = json.loads(annotations.get('busyboxdaemons.toletum.org.status'))
+        cluster_status = json.loads(annotations.get(LABELS["status_annotation"]))
     except Exception as ex:
         logger.error("Failed to parse annotation status: %s", ex)
         cluster_status = {}
 
     logger.info("%s/%s %s", namespace, name, str(cluster_status))
-
-
