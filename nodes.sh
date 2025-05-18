@@ -84,8 +84,8 @@ cloud-localds cloud-init-${key}.iso user-data-${key} meta-data-${key}
 
 virt-install \
   --name ${key} \
-  --ram=${MEMORY} \
-  --vcpus=${CPUS} \
+  --ram=${MEMORY[$key]} \
+  --vcpus=${CPUS[$key]} \
   --disk path=${key}.qcow2,format=qcow2 \
   --disk path=cloud-init-${key}.iso,device=cdrom \
   --os-variant ubuntu24.04 \

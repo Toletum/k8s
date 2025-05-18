@@ -3,10 +3,6 @@ kind: MongoDaemon
 metadata:
   name: mongo-cluster-4
 spec:
-  members:
-    - 192.168.122.201:27017
-    - 192.168.122.202:27017
-    - 192.168.122.203:27017
   keyfile: bXlzZWNyZXRrZXlmaWxlCg
   user: admin
   password: admin

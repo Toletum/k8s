@@ -1,15 +1,21 @@
 declare -A NODES
-
 NODES[node01]="192.168.122.200"
 NODES[node02]="192.168.122.201"
 NODES[node03]="192.168.122.202"
 NODES[node04]="192.168.122.203"
 
+
 declare -A MEMORY
-MEMORY=2048
+MEMORY[node01]=2048
+MEMORY[node02]=2048
+MEMORY[node03]=2048
+MEMORY[node04]=2048
 
 declare -A CPUS
-CPUS=2
+CPUS[node01]=4
+CPUS[node02]=2
+CPUS[node03]=2
+CPUS[node04]=2
 
 
 declare -A MANAGER
@@ -23,4 +29,3 @@ RESET=$(tput sgr0)
 
 # K8S
 DASHBOARD="false"
-

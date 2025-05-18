@@ -15,10 +15,6 @@ spec:
             spec:
               type: object
               properties:
-                members:
-                  type: array
-                  items:
-                    type: string
                 keyfile:
                   type: string
                 user:

@@ -23,6 +23,13 @@ LABELS = {
     "disabled_label": "mongo-toletum-org-disabled"
 }
 
+cluster_nodes = []
+cluster_status = {
+    'ready': False,
+    'replicaSet': False,
+    'userCreate': False
+}
+
 logger = logging.getLogger(LABELS['operator'])
 logging.basicConfig(level=logging.INFO)
 
@@ -34,25 +41,33 @@ except config.ConfigException:
     config.load_kube_config()
 
 
-def storage(patch, cluster_status: dict):
-    patch.metadata.annotations.update({LABELS["daemonset_status"]: json.dumps(cluster_status)})
+def run_rs_initiate(pod_name, namespace):
+    global cluster_nodes
 
-
-def run_rs_initiate(pod_name, namespace, members):
     api = client.CoreV1Api()
-    rs_members = [f'{{_id: {i}, host: "{host}"}}' for i, host in enumerate(members)]
-    rs_initiate = f'rs.initiate({{_id: "rs0", members: [{", ".join(rs_members)}]}})'
 
+    rs_members = [
+        f'{{_id: {i}, host: "{node["ip"]}:27017"}}'
+        for i, node in enumerate(cluster_nodes)
+    ]
+    rs_initiate = f'rs.initiate({{_id: "rs0", members: [{", ".join(rs_members)}]}})'
     cmd = ["mongosh", "--eval", rs_initiate]
 
-    resp = stream(api.connect_get_namespaced_pod_exec,
-                  pod_name,
-                  namespace,
-                  command=cmd,
-                  stderr=True, stdin=False,
-                  stdout=True, tty=False,
-                  _request_timeout=10)
-    return resp.strip()
+    try:
+        resp = stream(
+            api.connect_get_namespaced_pod_exec,
+            pod_name,
+            namespace,
+            command=cmd,
+            stderr=True,
+            stdin=False,
+            stdout=True,
+            tty=False,
+            _request_timeout=10,
+        )
+        return resp.strip()
+    except Exception as e:
+        return f"Error running rs.initiate: {e}"
 
 
 def isPrimary(pod_name, namespace):
@@ -95,6 +110,8 @@ def create_admin_user(pod_name, namespace, user, password):
 
 @kopf.on.startup()
 def configure(settings: kopf.OperatorSettings, **_):
+    global cluster_nodes
+
     v1 = client.CoreV1Api()
     logger.info("Checking node availability...")
     label_selector = f"{LABELS['mongodb_node']}=true"
@@ -104,7 +121,15 @@ def configure(settings: kopf.OperatorSettings, **_):
         logger.error(f"At least 3 nodes with the label {label_selector} are required")
         logger.error(" -> kubectl label node <NODE> mongo-toletum-org-mongodb=true --overwrite")
         sys.exit(1)
-    logger.info("Nodes: %s", [n.metadata.name for n in nodes.items])
+
+    cluster_nodes = [
+        {"name": node.metadata.name, "ip": addr.address}
+        for node in nodes.items
+        for addr in node.status.addresses
+        if addr.type == "InternalIP"
+    ]
+
+    logger.info("%s", str(cluster_nodes))
 
 
 @kopf.on.create(LABELS['domain'], LABELS['version'], LABELS['name'])
@@ -117,11 +142,7 @@ def create_ds(spec, name, namespace, patch, **kwargs):
         group="toletum.org", version="v1",
         namespace=namespace, plural="mongodaemons")
 
-    members = spec.get("members", [])
     keyfile = spec.get("keyfile", "")
-
-    if len(members) < 3:
-        raise kopf.PermanentError("Se requieren al menos 3 miembros para el replicaset.")
 
     # Si ya hay otro distinto a este, abortar
     for obj in objs.get('items', []):
@@ -137,45 +158,26 @@ def create_ds(spec, name, namespace, patch, **kwargs):
     ds_manifest["spec"]["template"]["spec"]["initContainers"][0]["command"][-1] = cmd_init
 
     api.create_namespaced_daemon_set(namespace=namespace, body=ds_manifest)
-    cluster_status = {
-        "created": True,
-        "ready": False,
-        "replicaSet": False,
-        "user": False
-    }
-    storage(patch, cluster_status)
-
 
 @kopf.on.delete(LABELS['domain'], LABELS['version'], LABELS['name'])
 def delete_ds(name, namespace, patch, **kwargs):
     api = client.AppsV1Api()
     try:
         api.delete_namespaced_daemon_set(name=name, namespace=namespace)
-        logger.info(f"DaemonSet {name} eliminado de {namespace}")
-        cluster_status = {
-            "created": False,
-            "ready": False,
-            "replicaSet": False,
-            "user": False
-        }
-        storage(patch, cluster_status)
+        logger.info(f"DaemonSet {namespace} - {name} deleted ")
     except ApiException as e:
         if e.status == 404:
-            logger.info(f"DaemonSet {name} not found, deleted before")
+            logger.info(f"DaemonSet {namespace} - {name} not found, deleted before")
         else:
             raise
 
 
 @kopf.daemon(LABELS['domain'], LABELS['version'], LABELS['name'], timeout=60)
 async def watch_cluster(spec, name, namespace, patch, stopped, **kwargs):
+    global cluster_status
+
     v1 = client.CoreV1Api()
     while not stopped:
-        try:
-            annotations = kwargs.get('body', {}).get('metadata', {}).get('annotations', {})
-            cluster_status = json.loads(annotations.get(LABELS["daemonset_status"]))
-        except Exception as ex:
-            cluster_status = {}
-
         label_selector = f"app={LABELS['mongodb_node']}"
         pods = v1.list_namespaced_pod(namespace=namespace, label_selector=label_selector)
         c = 0
@@ -183,52 +185,62 @@ async def watch_cluster(spec, name, namespace, patch, stopped, **kwargs):
         pod_primary = None
         for pod in pods.items:
             ispri = None
-            if cluster_status['replicaSet']:
-               ispri = isPrimary(pod.metadata.name, namespace)
-            estado = {
+            pod_status = {
                 "pod": pod.metadata.name,
                 "phase": pod.status.phase,
-                "ready": all([c.ready for c in (pod.status.container_statuses or [])]),
-                "isPrimary": ispri
+                "ready": all([c.ready for c in (pod.status.container_statuses or [])])
             }
-            logger.info("Pods status for %s: %s", name, estado)
+            if pod_status['ready']:
+                ispri = isPrimary(pod.metadata.name, namespace)
+                pod_status['isPrimary'] = ispri
+
+            logger.info("Pods status for %s: %s", name, pod_status)
             if ispri:
                 pod_primary = pod.metadata.name
-            if estado.get('ready'):
-                pod_ready = estado.get('pod')
+            if pod_status.get('ready'):
+                pod_ready = pod_status.get('pod')
                 c += 1
 
-        cluster_status["ready"] = len(pods.items) == c
+        if c >= 1:
+            cluster_status['ready'] = len(pods.items) == c
+        else:
+            cluster_status['ready'] = False
 
-        if cluster_status.get('replicaSet', False) and not cluster_status.get('user', False) and pod_primary is not None:
+        if cluster_status['ready'] and not cluster_status['replicaSet'] and pod_ready:
+            try:
+                response = run_rs_initiate(pod_ready, namespace)
+                if response == '{ ok: 1 }':
+                    logger.info("replicaSet ready")
+                    cluster_status['replicaSet'] = True
+                elif response == 'MongoServerError: already initialized':
+                    logger.warning("replicaSet: already initialized")
+                    cluster_status['replicaSet'] = True
+                elif response == 'MongoServerError: Command replSetInitiate requires authentication':
+                    logger.warning("replicaSet: User already created before")
+                    cluster_status['replicaSet'] = True
+                else:
+                    cluster_status['replicaSet'] = False
+                    logger.error("replicaSet: %s", response)
+            except Exception as ex:
+                logger.error("replicaSet Exception: %s", str(ex))
+
+        if cluster_status['replicaSet'] and not cluster_status['userCreate'] and pod_primary:
             try:
                 user = spec.get("user", "")
                 password = spec.get("password", "")
                 status = create_admin_user(pod_primary, namespace, user, password)
-                logger.info("CREATED ROOT USER: %s", status)
-                cluster_status['user'] = True
-                storage(patch, cluster_status)
+                if status == 'mongoservererror: command createuser requires authentication':
+                    logger.warning("User already created before")
+                else:
+                    logger.info("Root user %s created:: %s", user, status)
+                cluster_status['userCreate'] = True
             except Exception as ex:
                 logger.error("CREATING ROOT USER: %s", user)
 
-        # Ready and not replicaSet
-        if  cluster_status.get('ready', False) and not cluster_status.get('replicaSet', False):
-            members = spec.get("members", [])
-            logger.info("replicaSet config... %s", str(members))
-            try:
-                status = run_rs_initiate(pod_ready, namespace, members)
-                if status == '{ ok: 1 }':
-                    cluster_status['replicaSet'] = True
-                    storage(patch, cluster_status)
-                    logger.info("replicaSet ready")
-                elif status == 'MongoServerError: already initialized':
-                    logger.warning("replicaSet: already initialized")
-                    cluster_status['replicaSet'] = True
-                    storage(patch, cluster_status)
-                else:
-                    logger.error("replicaSet: %s", status)
-            except Exception as ex:
-                logger.error("replicaSet Exception: %s", str(ex))
-
         logger.info("%s/%s daemonset_status: %s", namespace, name, str(cluster_status))
-        await asyncio.sleep(10)
+
+        if cluster_status['userCreate']:
+            sleep = 60
+        else:
+            sleep = 5
+        await asyncio.sleep(sleep)
