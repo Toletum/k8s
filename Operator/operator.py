@@ -1,6 +1,4 @@
 import copy
-import json
-import logging
 import sys
 import yaml
 
@@ -9,29 +7,15 @@ import asyncio
 import kopf
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
-from kubernetes.stream import stream
 
-LABELS = {
-    "domain": "toletum.org",
-    "version": "v1",
-    "name": "mongodaemon",
-    "manifest": "ds_manifest.yaml",
-    "operator": "mongodaemons.toletum.org",
-    "mongodb_node": "mongo-toletum-org-mongodb",
-    "daemonset_status": "mongodaemons.toletum.org.status",
-    "primary_label": "mongo-toletum-org-primary",
-    "disabled_label": "mongo-toletum-org-disabled"
-}
+from helpers import run_rs_initiate, isPrimary, create_admin_user, generate_keyfile
+from consts import LABELS, logger
 
-cluster_nodes = []
 cluster_status = {
     'ready': False,
     'replicaSet': False,
     'userCreate': False
 }
-
-logger = logging.getLogger(LABELS['operator'])
-logging.basicConfig(level=logging.INFO)
 
 
 # Cargar configuración K8s
@@ -41,77 +25,8 @@ except config.ConfigException:
     config.load_kube_config()
 
 
-def run_rs_initiate(pod_name, namespace):
-    global cluster_nodes
-
-    api = client.CoreV1Api()
-
-    rs_members = [
-        f'{{_id: {i}, host: "{node["ip"]}:27017"}}'
-        for i, node in enumerate(cluster_nodes)
-    ]
-    rs_initiate = f'rs.initiate({{_id: "rs0", members: [{", ".join(rs_members)}]}})'
-    cmd = ["mongosh", "--eval", rs_initiate]
-
-    try:
-        resp = stream(
-            api.connect_get_namespaced_pod_exec,
-            pod_name,
-            namespace,
-            command=cmd,
-            stderr=True,
-            stdin=False,
-            stdout=True,
-            tty=False,
-            _request_timeout=10,
-        )
-        return resp.strip()
-    except Exception as e:
-        return f"Error running rs.initiate: {e}"
-
-
-def isPrimary(pod_name, namespace):
-    api = client.CoreV1Api()
-    cmd = ["mongosh", "--eval", 'db.hello().isWritablePrimary']
-    try:
-        resp = stream(api.connect_get_namespaced_pod_exec,
-                      pod_name,
-                      namespace,
-                      command=cmd,
-                      stderr=True, stdin=False,
-                      stdout=True, tty=False,
-                      _request_timeout=10).strip().lower()
-        # Poner "true"/"false" como string
-        label_value = "true" if resp == "true" else "false"
-        body = {"metadata": {"labels": {LABELS['primary_label']: label_value, LABELS['disabled_label']: None}}}
-        api.patch_namespaced_pod(name=pod_name, namespace=namespace, body=body)
-        return True if resp == "true" else False
-    except Exception as ex:
-        body = {"metadata": {"labels": {
-            LABELS['disabled_label']: "true",
-            LABELS['primary_label']: None
-        }}}
-        api.patch_namespaced_pod(name=pod_name, namespace=namespace, body=body)
-        return None
-
-def create_admin_user(pod_name, namespace, user, password):
-    api = client.CoreV1Api()
-    create_user_cmd = f'db.getSiblingDB("admin").createUser({{user:"{user}", pwd:"{password}", roles:[{{role:"root", db:"admin"}}]}})'
-    cmd = ["mongosh", "--eval", create_user_cmd]
-    resp = stream(api.connect_get_namespaced_pod_exec,
-                  pod_name,
-                  namespace,
-                  command=cmd,
-                  stderr=True, stdin=False,
-                  stdout=True, tty=False,
-                  _request_timeout=10).strip().lower()
-    return resp
-
-
 @kopf.on.startup()
 def configure(settings: kopf.OperatorSettings, **_):
-    global cluster_nodes
-
     v1 = client.CoreV1Api()
     logger.info("Checking node availability...")
     label_selector = f"{LABELS['mongodb_node']}=true"
@@ -142,7 +57,7 @@ def create_ds(spec, name, namespace, patch, **kwargs):
         group="toletum.org", version="v1",
         namespace=namespace, plural="mongodaemons")
 
-    keyfile = spec.get("keyfile", "")
+    keyfile = generate_keyfile()
 
     # Si ya hay otro distinto a este, abortar
     for obj in objs.get('items', []):
@@ -176,10 +91,10 @@ def delete_ds(name, namespace, patch, **kwargs):
 async def watch_cluster(spec, name, namespace, patch, stopped, **kwargs):
     global cluster_status
 
-    v1 = client.CoreV1Api()
+    core = client.CoreV1Api()
     while not stopped:
         label_selector = f"app={LABELS['mongodb_node']}"
-        pods = v1.list_namespaced_pod(namespace=namespace, label_selector=label_selector)
+        pods = core.list_namespaced_pod(namespace=namespace, label_selector=label_selector)
         c = 0
         pod_ready = None
         pod_primary = None
@@ -208,7 +123,7 @@ async def watch_cluster(spec, name, namespace, patch, stopped, **kwargs):
 
         if cluster_status['ready'] and not cluster_status['replicaSet'] and pod_ready:
             try:
-                response = run_rs_initiate(pod_ready, namespace)
+                response = run_rs_initiate(pod_ready, namespace, pods.items)
                 if response == '{ ok: 1 }':
                     logger.info("replicaSet ready")
                     cluster_status['replicaSet'] = True
@@ -243,4 +158,5 @@ async def watch_cluster(spec, name, namespace, patch, stopped, **kwargs):
             sleep = 60
         else:
             sleep = 5
+        sleep = 5
         await asyncio.sleep(sleep)
