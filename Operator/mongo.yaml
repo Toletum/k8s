@@ -3,7 +3,7 @@ kind: MongoDaemon
 metadata:
   name: mongo-cluster-4
 spec:
-  keyfile: bXlzZWNyZXRrZXlmaWxlCg
-  user: admin
-  password: admin
+  adminuser:
+    user: admin
+    password: admin
 

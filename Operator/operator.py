@@ -116,10 +116,7 @@ async def watch_cluster(spec, name, namespace, patch, stopped, **kwargs):
                 pod_ready = pod_status.get('pod')
                 c += 1
 
-        if c >= 1:
-            cluster_status['ready'] = len(pods.items) == c
-        else:
-            cluster_status['ready'] = False
+        cluster_status['ready'] = 1 <= c == len(pods.items)
 
         if cluster_status['ready'] and not cluster_status['replicaSet'] and pod_ready:
             try:
@@ -141,8 +138,9 @@ async def watch_cluster(spec, name, namespace, patch, stopped, **kwargs):
 
         if cluster_status['replicaSet'] and not cluster_status['userCreate'] and pod_primary:
             try:
-                user = spec.get("user", "")
-                password = spec.get("password", "")
+                adminuser = spec.get("adminuser", {})
+                user = adminuser.get("user", "")
+                password = adminuser.get("password", "")
                 status = create_admin_user(pod_primary, namespace, user, password)
                 if status == 'mongoservererror: command createuser requires authentication':
                     logger.warning("User already created before")
@@ -152,11 +150,11 @@ async def watch_cluster(spec, name, namespace, patch, stopped, **kwargs):
             except Exception as ex:
                 logger.error("CREATING ROOT USER: %s", user)
 
-        logger.info("%s/%s daemonset_status: %s", namespace, name, str(cluster_status))
+        logger.info("%s/%s cluster_status: %s", namespace, name, str(cluster_status))
 
         if cluster_status['userCreate']:
             sleep = 60
         else:
             sleep = 5
-        sleep = 5
+
         await asyncio.sleep(sleep)
