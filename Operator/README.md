@@ -1,4 +1,4 @@
-
+```bash
 ssh -i keys root@192.168.122.200
 
 python -m venv .venv
@@ -50,10 +50,10 @@ ssh -o StrictHostKeyChecking=no -i ../keys root@${NODES[$key]} ls -la /data
 done
 
 kubectl patch MongoDaemon mongo-cluster-1 -p '{"status": null}' --type=merge
+```
 
 
-
-
+```Dockerfile
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -64,12 +64,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 CMD ["kopf", "run", "--standalone", "your_operator_file.py"]
+```
 
-kopf
-kubernetes
-pyyaml
-
-
+```requirements.txt
 aiohappyeyeballs==2.6.1
 aiohttp==3.11.18
 aiosignal==1.3.2
@@ -100,3 +97,4 @@ six==1.17.0
 urllib3==2.4.0
 websocket-client==1.8.0
 yarl==1.20.0
+```
