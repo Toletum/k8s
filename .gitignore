@@ -9,3 +9,6 @@ meta-data*
 venv/
 __pycache__/
 data/
+/helm
+/kubeconfig
+/kubectl
