@@ -1,0 +1,99 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ .Release.Name }}-mongo
+  labels:
+    app: mongo-toletum-org-mongodb
+spec:
+  selector:
+    matchLabels:
+      app: mongo-toletum-org-mongodb
+  template:
+    metadata:
+      labels:
+        app: mongo-toletum-org-mongodb
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: mongo-toletum-org-mongodb
+                    operator: In
+                    values:
+                      - "true"
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: mongo-toletum-org-mongodb
+              topologyKey: kubernetes.io/hostname
+      initContainers:
+        - name: init-keyfile
+          image: busybox
+          command:
+            - sh
+            - -c
+            - echo '{{ .Values.keyfile }}' > /data/db/keyfile && chmod 400 /data/db/keyfile && chown 999:999 -R /data/db
+          volumeMounts:
+            - name: mongo-data
+              mountPath: /data/db
+      containers:
+        - name: mongodb
+          image: mongo:8.0
+          args:
+            - --replSet
+            - rs0
+            - --bind_ip_all
+            - --auth
+            - --keyFile=/data/db/keyfile
+          ports:
+            - containerPort: 27017
+          volumeMounts:
+            - name: mongo-data
+              mountPath: /data/db
+          readinessProbe:
+            exec:
+              command:
+                - mongosh
+                - --eval
+                - db.adminCommand('ping')
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 5
+          livenessProbe:
+            exec:
+              command:
+                - mongosh
+                - --eval
+                - db.adminCommand('ping')
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+        - name: create-user
+          image: mongo:8.0
+          command: ["sh", "-c"]
+          args:
+          - |
+            while true; do
+              mongosh "mongodb://{{ .Values.adminUser.username }}:{{ .Values.adminUser.password }}@127.0.0.1:27017" --quiet --eval "rs.isMaster().ismaster"
+              if [ $? -ne 0 ]; then
+                primary=$(mongosh --quiet --eval "rs.isMaster().ismaster")
+                if [ "$primary" = "true" ]; then
+                  mongosh --quiet --eval "db.getSiblingDB("admin").createUser({user: '{{ .Values.adminUser.username }}', pwd: '{{ .Values.adminUser.password }}', roles:[{role:'root', db:'admin'}]})"
+                fi
+              else
+                exit 0
+              fi
+              sleep 5
+            done
+      volumes:
+        - name: mongo-data
+          hostPath:
+            path: /data/db
+            type: DirectoryOrCreate
+

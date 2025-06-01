@@ -1,0 +1,4 @@
+apiVersion: toletum.org/v1
+kind: BusyboxDaemon
+metadata:
+  name: test-busy

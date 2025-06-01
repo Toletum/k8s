@@ -1,0 +1,6 @@
+NODES_INI="node01"
+
+SSH="ssh -o StrictHostKeyChecking=no -i data/keys"
+
+# K8S
+DASHBOARD="false"

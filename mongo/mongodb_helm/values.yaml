@@ -1,0 +1,11 @@
+keyfile: "superSecretoKey123456789"
+replicaSet:
+  name: rs0
+  members:
+    - 192.168.122.201:27017
+    - 192.168.122.202:27017
+    - 192.168.122.203:27017
+adminUser:
+  username: admin
+  password: admin
+

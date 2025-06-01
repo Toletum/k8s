@@ -1,0 +1,11 @@
+user-data*
+meta-data*
+*.qcow2
+*.img
+*.gz
+
+.idea/
+.venv/
+venv/
+__pycache__/
+data/

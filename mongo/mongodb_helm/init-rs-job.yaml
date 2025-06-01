@@ -1,0 +1,12 @@
+
+kubectl exec -ti mi-release-mongo-fs5mf -- bash -c '
+mongosh "mongodb://admin:admin@127.0.0.1:27017"  --quiet --eval "rs.isMaster().ismaster"
+
+if [ $? -ne 0 ]; then # User no created Yet
+primary=$(mongosh "mongodb://127.0.0.1:27017"  --quiet --eval "rs.isMaster().ismaster")
+if [ "$primary" == "true" ];
+  echo "CREAR USER"
+fi
+fi
+'
+

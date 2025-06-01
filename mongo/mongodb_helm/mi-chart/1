@@ -1,0 +1,15 @@
+baseName: mongo-cluster
+replicaCount: 3
+image:
+  repository: mongo
+  tag: "8.0"
+  pullPolicy: IfNotPresent
+keyfile: "PLACEHOLDER_KEYFILE"
+nodeSelector:
+  mongo-toletum-org-mongodb: "true"
+service:
+  port: 27017
+serviceAccount:
+  create: false
+  name: ""
+

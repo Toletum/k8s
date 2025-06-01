@@ -1,0 +1,73 @@
+RED=$(tput setaf 1)
+GREEN=$(tput setaf 2)
+YELLOW=$(tput setaf 3)
+RESET=$(tput sgr0)
+
+
+function msg() {
+  color="$1"
+  shift
+  txt="$*"
+  echo -e "${color}$(date): ${txt}${RESET}"
+}
+
+function msg_error() {
+  txt="$*"
+  msg "${RED}" "$txt"
+}
+
+function msg_ok() {
+  txt="$*"
+  msg "${GREEN}" "$txt"
+}
+
+function msg_warm() {
+  txt="$*"
+  msg "${YELLOW}" "$txt"
+}
+
+function process() {
+  echo -e "${RED}\c"
+}
+
+function restore() {
+  echo -e "${RESET}"
+}
+
+
+function node_running() {
+  NODE="$1"
+  KUBECTL="$PWD/kubectl --kubeconfig=$PWD/kubeconfig"
+
+  while true; do
+    sleep 5
+    STATUS=$($KUBECTL get nodes ${NODE} --no-headers | awk '{print $2}')
+    if [ "$STATUS" == "Ready" ]; then
+      break
+    fi
+    msg_warm "node $NODE no ready..."
+  done
+  msg_ok "node $NODE Ready"
+}
+
+function pods_running() {
+  NODE="$1"
+  KUBECTL="$PWD/kubectl --kubeconfig=$PWD/kubeconfig"
+
+  while true; do
+    sleep 5
+    pending=$($KUBECTL get pods -A  --field-selector spec.nodeName=${NODE} --no-headers | awk '{print $4}' | grep -v -E 'Running|Completed' | wc -l)
+    if [ $pending -eq 0 ]; then
+      break
+    fi
+    msg_warm "$NODE: PODs pending: $pending..."
+  done
+  msg_ok "$NODE PODS Ready"
+}
+
+
+function getIP() {
+  NODE="$1"
+  virsh domifaddr "$NODE" 2> /dev/null | awk '/vnet/ {print $4}' | cut -d'/' -f1
+}
+

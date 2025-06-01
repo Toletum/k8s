@@ -1,0 +1,102 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo
+spec:
+  clusterIP: None
+  selector:
+    app: mongo
+  ports:
+    - port: 27017
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongo
+spec:
+  serviceName: mongo
+  replicas: 3
+  selector:
+    matchLabels:
+      app: mongo
+  template:
+    metadata:
+      labels:
+        app: mongo
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: mongo
+              topologyKey: "kubernetes.io/hostname"
+      initContainers:
+        - name: init-keyfile
+          image: alpine:latest
+          command: 
+            - sh
+            - -c
+            - "cp /mnt/keyfile /data/db/keyfile && chmod 600 /data/db/keyfile && chown 999:999 /data/db/keyfile"
+          volumeMounts:
+            - name: mongo-keyfile
+              mountPath: /mnt
+            - name: data
+              mountPath: /data/db
+      containers:
+        - name: devops
+          image: alpine:latest
+          command: 
+            - sleep
+            - infinity
+          volumeMounts:
+            - name: data
+              mountPath: /data/db
+        - name: mongo
+          image: mongo:8.0
+          args:
+            - "--replSet"
+            - "rs0"
+            - "--bind_ip_all"
+            - "--auth"
+            - "--keyFile=/data/db/keyfile"
+          ports:
+            - containerPort: 27017
+          readinessProbe:
+            exec:
+              command:
+                - mongosh
+                - --eval
+                - "db.adminCommand('ping')"
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 5
+          livenessProbe:
+            exec:
+              command:
+                - mongosh
+                - --eval
+                - "db.adminCommand('ping')"
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          volumeMounts:
+            - name: data
+              mountPath: /data/db
+      volumes:
+        - name: mongo-keyfile
+          secret:
+            secretName: mongo-keyfile
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
+

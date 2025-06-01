@@ -1,0 +1,9 @@
+apiVersion: toletum.org/v1
+kind: MongoDaemon
+metadata:
+  name: mongo-cluster-4
+spec:
+  adminuser:
+    user: admin
+    password: admin
+

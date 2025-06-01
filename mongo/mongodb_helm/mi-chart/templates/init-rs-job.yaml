@@ -1,0 +1,26 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-init-rs
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: OnFailure
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: init-rs
+          image: mongo:8.0
+          command:
+            - mongosh
+            - --eval
+            - |
+              rs.initiate({
+                _id: "{{ .Values.replicaSet.name }}",
+                members: [
+                {{- range $i, $host := .Values.replicaSet.members }}
+                  { _id: {{ $i }}, host: "{{ $host }}" }{{ if ne (add1 $i) (len $.Values.replicaSet.members) }},{{ end }}
+                {{- end }}
+                ]
+              })

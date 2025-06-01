@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ .Release.Name }}-mongo-admin-init
+  labels:
+    app: mongo-admin-init
+spec:
+  selector:
+    matchLabels:
+      app: mongo-admin-init
+  template:
+    metadata:
+      labels:
+        app: mongo-admin-init
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      restartPolicy: Never
+      containers:
+        - name: admin-init
+          image: mongo:8.0
+          command:
+            - sh
+            - -c
+            - |
+              is_primary=$(mongosh --quiet --eval "rs.isMaster().ismaster")
+              if [ "$is_primary" = "true" ]; then
+                echo "Soy PRIMARY, creando usuario admin"
+                mongosh --quiet --eval "db.createUser({user: '{{ .Values.adminUser.username }}', pwd: '{{ .Values.adminUser.password }}', roles:[{role:'root', db:'admin'}]})"
+              else
+                echo "No soy PRIMARY, salgo"
+                exit 0
+              fi
