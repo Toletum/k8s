@@ -1,4 +1,4 @@
-
+```bash
 ssh -i keys root@192.168.122.200
 
 python -m venv .venv
@@ -100,3 +100,4 @@ six==1.17.0
 urllib3==2.4.0
 websocket-client==1.8.0
 yarl==1.20.0
+```
